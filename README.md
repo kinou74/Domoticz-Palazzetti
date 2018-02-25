@@ -1,2 +1,2 @@
 # Domoticz-Palazzetti
-Domoticz Plugin for Palazzetti Connection Box
+Domoticz Python Plugin for Palazzetti Connection Box
