@@ -10,8 +10,9 @@ This plugin has been developed to replace a first attempt of Domoticz/Palazzetti
 * PHP script to send JSON requests to the Connection Box - used as device action script 
 * LUA script to sync data between dummy devices, with a intensive use of ```commandArray["UpdateDevice"] = "idx|nValue|sValue"``` to avoid infinite back and forth at device update.
 
-The aim of developing this plugin was to ease maintenance by reducing the number of script files.
-Moreover, there is no more need to maintain devices idx in different scripts, as Domoticz Python plugin framework gives a index-free access to devices attached to the plugin hardware.
+So the main reason of this plugin was to ease maintenance by reducing the number of script files.
+Moreover, there is no more need to maintain devices idx in different scripts, as Domoticz Python plugin framework gives an index-less access to devices attached to the plugin hardware.
+BTW, it's also my first walk in Python scripts.
 
 ## Key Features
 
@@ -24,7 +25,8 @@ Creates the following Domoticz Devices:
 * Power level selector switch (1,2,3,4,5)
 * Setpoint
 * Room temperature
-* Pellet quantity used (in Kg)
+* Exhaust temperature
+* Pellet quantity used counter (in Kg)
 
 ## Configuration
 
@@ -39,7 +41,7 @@ Creates the following Domoticz Devices:
 
 ### Custom codes
 
-Here the standard status code/label:
+Here are the standard status code/label as used in the Palazzetti Connexion Box web interface:
 
 | Code | Label|
 | ----- | ---------- |
@@ -66,5 +68,13 @@ Both standard codes and labels can be used as key in the ```dict``` definition.
 | Version | Information|
 | ----- | ---------- |
 | 0.9.0 | Initial upload version |
+
+
+## TODO
+
+* Show last alarm
+
+
+
 
 
