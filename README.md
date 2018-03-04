@@ -1,6 +1,6 @@
 # Domoticz-Palazzetti-Plugin
 
-Palazzetti Connection Box Python Plugin for Domoticz.
+A simple Domoticz Python plugin to control your Palazzetti pellet stove through the Palazzetti Connection Box.
 
 ## History
 
@@ -13,6 +13,8 @@ This plugin has been developed to replace a first attempt of Domoticz/Palazzetti
 So the main reason of this plugin was to ease maintenance by reducing the number of script files.
 Moreover, there is no more need to maintain devices idx in different scripts, as Domoticz Python plugin framework gives an index-less access to devices attached to the plugin hardware.
 BTW, it's also my first walk in Python scripts.
+
+This plugin is being developped based on an Ecofire Ines 9kW Palazzetti pellet stove.
 
 ## Key Features
 
