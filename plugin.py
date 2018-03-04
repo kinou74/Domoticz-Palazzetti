@@ -139,9 +139,9 @@ class BasePlugin:
             # __UNIT_FAN_FAN2V
 
 
-        # Loop on custome codes
-        if ( Parameters["Mode5"] ):
-          self.updateCustomeStatusCodes( Parameters["Mode5"] )
+        # Loop on custom codes
+        # if ( Parameters["Mode5"] ):
+        #  self.updateCustomStatusCodes( Parameters["Mode5"] )
         
         # prepare first commande before connecting
         self.nextCommands.append("GET+ALLS")
@@ -234,12 +234,14 @@ class BasePlugin:
           
               # Domoticz.Debug("New Fan Speed from Palazzetti:"+str(newRoomFanLevel))
               if ( newRoomFanLevel >= 1 ) and (newRoomFanLevel <= 5): # 1 to 5
-                value = int(newRoomFanLevel * 10)
-                UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, str(value))
+                  value = int(newRoomFanLevel * 10)
+                  UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, str(value))
               elif ( newRoomFanLevel == 7 ): # OFF
-                UpdateDevice(self.__UNIT_FAN2LEVEL, 0, 0)
+                  UpdateDevice(self.__UNIT_FAN2LEVEL, 0, 0)
               elif ( newRoomFanLevel == 0 ): # Auto
-                UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, 60)
+                  UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, 60)
+              elif ( newRoomFanLevel == 6 ): # HI
+                  UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, 70)
           
           # Power level
           if ("All Data" in Response or "Power" in Response):
@@ -290,18 +292,19 @@ class BasePlugin:
         action = action.capitalize()
         
         if (Unit == self.__UNIT_FAN2LEVEL): # Fan Speed Selector Switch
-            fanLevel = 1
+            fanLevel = 2
             if (int(Level) >= 10 ) and  (int(Level) <= 50): # 1, 2, 3, 4, 5
-              fanLevel = int(int(Level) / 10)  
-            elif (int(Level) == 60): # Auto
-              fanLevel = 0
+                fanLevel = int(int(Level) / 10)  
             elif (int(Level) == 0): # Off
-               fanLevel = 7
+                fanLevel = 7
+            elif (int(Level) == 60): # Auto
+                fanLevel = 0
+            elif (int(Level) == 70): # Hi
+                fanLevel = 6
                
             Domoticz.Debug("Setting new fan speed:"+str(fanLevel))
             cmd = "SET+RFAN+"+str(fanLevel)
             self.sendConnectionBoxCommand(cmd)
-            # Connection.Send('', 'GET', '/sendmsg.php?cmd=SET+FAN+'+fanLevel, headers)
             
         elif (Unit == self.__UNIT_POWER): # Power Level Selector Switch
             powerLevel = int(int(Level) / 10)
@@ -342,8 +345,8 @@ class BasePlugin:
               UpdateDevice(self.__UNIT_TIMER_ONOFF, 1, str("On"))
               cmd = "SET+CSST+1"
               self.sendConnectionBoxCommand(cmd)
-            return True
-
+              
+        return True
 
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
@@ -436,7 +439,7 @@ class BasePlugin:
               self.httpConn.Connect()
             
             
-    def updateCustomeStatusCodes(self, customCodesStr):
+    def updateCustomStatusCodes(self, customCodesStr):
         customCodesDict = None
         try:
            customCodesDict = ast.literal_eval(customCodesStr)
