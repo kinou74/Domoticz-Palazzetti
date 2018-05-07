@@ -173,13 +173,17 @@ class BasePlugin:
         return True
 
 
-    def onMessage(self, Connection, Data, Status, Extra):
+    def onMessage(self, Connection, Data):
     
-        Domoticz.Debug("onMessage: Status="+str(Status))
+        #Domoticz.Debug("onMessage: Status="+str(Status))
         
-        strData = Data.decode("utf-8", "ignore")
-        Response = json.loads(strData)
+        #strData = Data.decode("utf-8", "ignore")
+        #Response = json.loads(strData)
         
+        # Response = json.loads( Data.decode("utf-8", "ignore") )
+        
+        Response = json.loads( Data["Data"].decode("utf-8", "ignore") )
+
         if (Response["Info"]["RSP"] == "OK"):
 
           if ("All Data" in Response):
@@ -417,6 +421,16 @@ class BasePlugin:
         if self.httpConn.Connected():
             Domoticz.Debug("onHeartbeat called, Connection is alive.")
             
+            #data = ''
+            #headers = { 'Content-Type': 'text/xml; charset=utf-8', \
+            #            'Connection': 'keep-alive', \
+            #            'Accept': 'Content-Type: text/html; charset=UTF-8', \
+            #            'Host': Parameters["Address"]+":"+Parameters["Port"], \
+            #            'User-Agent':'Domoticz/1.0', \
+            #            'Content-Length' : "%d"%(len('')) }
+            # self.httpConn.Send(data, 'GET', '/sendmsg.php?cmd='+command, headers)
+        
+
             data = ''
             headers = { 'Content-Type': 'text/xml; charset=utf-8', \
                         'Connection': 'keep-alive', \
@@ -424,7 +438,13 @@ class BasePlugin:
                         'Host': Parameters["Address"]+":"+Parameters["Port"], \
                         'User-Agent':'Domoticz/1.0', \
                         'Content-Length' : "%d"%(len(data)) }
-            self.httpConn.Send(data, 'GET', '/sendmsg.php?cmd='+command, headers)
+
+            sendData = { 'Verb' : 'GET',
+                         'URL'  : '/sendmsg.php?cmd='+command,
+                         'Headers' : headers
+                       }
+            self.httpConn.Send(sendData)
+            
             
         else:
             if ( self.nextCommands.count(command) == 0 ):
@@ -486,9 +506,9 @@ def onConnect(Connection, Status, Description):
     global _plugin
     _plugin.onConnect(Connection, Status, Description)
 
-def onMessage(Connection, Data, Status, Extra):
+def onMessage(Connection, Data):
     global _plugin
-    _plugin.onMessage(Connection, Data, Status, Extra)
+    _plugin.onMessage(Connection, Data)
 
 def onCommand(Unit, Command, Level, Hue):
     global _plugin
