@@ -2,6 +2,10 @@
 
 A simple Domoticz Python plugin to control your Palazzetti pellet stove through the Palazzetti Connection Box.
 
+## Screenshot
+
+![Plugin screenshot](https://github.com/kinou74/Domoticz-Palazzetti/raw/master/doc/screenshot.png)
+
 ## History
 
 This plugin has been developed to replace a first attempt of Domoticz/Palazzetti Connection Box interface that was based on:
