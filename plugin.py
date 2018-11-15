@@ -2,13 +2,21 @@
 #
 # Author: kinou74, 2018
 #
-#
+# Changes:
+# 20181114 - New Plugin option to choose the Connection Box API.
+#            Staring mid-2018, Palazzetti has released a new software and the API URLs changes from PHP to LUA.
 #
 """
-<plugin key="palazzetti-cbox" name="Palazzetti Connection Box" author="kinou74" version="0.9.0">
+<plugin key="palazzetti-cbox" name="Palazzetti Connection Box" author="kinou74" version="0.9.1">
     <params>
         <param field="Address" label="Connection Box IP Address" width="200px" required="true" default="127.0.0.1"/>
         <param field="Port" label="Port" width="30px" required="true" default="80"/>
+        <param field="Mode4" label="Use new LUA API" width="75px">
+            <options>
+                <option label="True" value="True" default="true" />
+                <option label="False" value="False" />
+            </options>
+        </param>
         <param field="Mode5" label="Custom Codes" width="500px" default="" />
         <param field="Mode6" label="Debug" width="75px">
           <options>
@@ -74,6 +82,17 @@ class BasePlugin:
                    "252": "GAS ALARM",
                    "253": "NOPELLET ALARM" }
     
+    # Choice of connection box API
+    # True stands for new API with LUA cgi script introduced mid-2018
+    # False stands for previous API using the Php frontend application
+    newLUAAPI = True
+    __API_URI_PHP = "/sendmsg.php"
+    __API_URI_LUA = "/cgi-bin/sendmsg.lua"
+    API_URI = __API_URI_LUA
+
+    __JSON_DATA_KEY = "DATA" # used in LUA API for all commands
+    __JSON_ALL_DATA_KEY = "All Data" # used in PHP API for GET+ALLS cmd
+
     def __init__(self):
         return
 
@@ -86,6 +105,19 @@ class BasePlugin:
         if Parameters["Mode6"] == "Debug":
             Domoticz.Debugging(1)
             
+        # Use new cbox LUA API instead of PHP ?
+        if Parameters["Mode4"] == "False":
+            self.newLUAAPI = False
+
+        # Set some variables according to API choice
+        if self.newLUAAPI:
+            # we set variables so that they are up-to-date
+            Domoticz.Debug("Will use the new LUA API backend")
+            self.API_URI = self.__API_URI_LUA
+        else:
+            Domoticz.Debug("Will use the old PHP API backend")
+            self.API_URI = self.__API_URI_PHP
+
         if (len(Devices) == 0):
             # types / subtypes reference: https://github.com/domoticz/domoticz/blob/master/hardware/hardwaretypes.h
             # Image index for switches: Fireplace: 10, Fan: 7, Heating: 15, Generic: 
@@ -138,19 +170,16 @@ class BasePlugin:
             
             # __UNIT_FAN_FAN2V
 
-
-        # Loop on custom codes
-        # if ( Parameters["Mode5"] ):
-        #  self.updateCustomStatusCodes( Parameters["Mode5"] )
-        
         # prepare first commande before connecting
         self.nextCommands.append("GET+ALLS")
-        self.nextCommands.append("GET+CHRD")
+
+        # no need for CHRD with new API because Chrono status info is returned part of GET+ALLS cmd
+        if not self.newLUAAPI:
+            self.nextCommands.append("GET+CHRD")
+
         self.httpConn = Domoticz.Connection(Name="cbox", Transport="TCP/IP", Protocol="HTTP", Address=Parameters["Address"], Port=Parameters["Port"])
         self.httpConn.Connect()
         
-        # self.updateConnectionBoxStatus()
-
         Domoticz.Heartbeat(10)
 
 
@@ -175,108 +204,126 @@ class BasePlugin:
 
     def onMessage(self, Connection, Data):
     
-        #Domoticz.Debug("onMessage: Status="+str(Status))
-        
-        #strData = Data.decode("utf-8", "ignore")
-        #Response = json.loads(strData)
-        
-        # Response = json.loads( Data.decode("utf-8", "ignore") )
-        
         Response = json.loads( Data["Data"].decode("utf-8", "ignore") )
 
         if (Response["Info"]["RSP"] == "OK"):
 
-          if ("All Data" in Response):
-              # PELLET_QTUSED
-              UpdateDevice(self.__UNIT_PELLET_QTUSED, 0, str(Response["All Data"]["PELLET_QTUSED"]))
-              # ROOM Temperature
-              UpdateDevice(self.__UNIT_TMP_ROOM, 0, str(Response["All Data"]["TMP_ROOM_WATER"]))
-              # TMP_PELLET_BACKW
-              UpdateDevice(self.__UNIT_TMP_PELLET_BACKW, 0, str(Response["All Data"]["TMP_PELLET_BACKW"]))
-              # TMP_EXHAUST
-              UpdateDevice(self.__UNIT_TMP_EXHAUST, 0, str(Response["All Data"]["TMP_EXHAUST"]))
-              # FAN_FAN1RPM
-              UpdateDevice(self.__UNIT_FAN_FAN1RPM, 0, str(Response["All Data"]["FAN_FAN1RPM"]))
-              
-              
-          # Setpoint
-          if ("All Data" in Response or "Setpoint" in Response):
-              if ("All Data" in Response):
-                  UpdateDevice(self.__UNIT_SETP, 0, str(Response["All Data"]["SETP"]))
-              else:
-                  UpdateDevice(self.__UNIT_SETP, 0, str(Response["Setpoint"]["SETP"]))
-          
-          # Status
-          if ("All Data" in Response or "Status" in Response):
-              if ("All Data" in Response):
-                  self.status = int(Response["All Data"]["STATUS"])
-              else:
-                  self.status = int(Response["Status"]["STATUS"])
-          
-              # Update status code
-              UpdateDevice(self.__UNIT_STATUS, 3, str(self.status))
+            isNewAPI = self.newLUAAPI
+            isOldAPI = not self.newLUAAPI
+            isAllDataResponse = isOldAPI and self.__JSON_ALL_DATA_KEY in Response
 
-              # update onStatus and On/Off Switch according to real status
-              if (self.status >= 2 and self.status <= 12):
-                  self.onStatus = 1
-                  UpdateDevice(self.__UNIT_ONOFF, 1, str("On"))
-              else:
-                  self.onStatus = 0
-                  UpdateDevice(self.__UNIT_ONOFF, 0, str("Off"))
+            # old API contains more information with "GET+ALLS" command
+            if (isAllDataResponse):
+                # PELLET_QTUSED
+                UpdateDevice(self.__UNIT_PELLET_QTUSED, 0, str(Response[self.__JSON_ALL_DATA_KEY]["PELLET_QTUSED"]))
+                # ROOM Temperature
+                UpdateDevice(self.__UNIT_TMP_ROOM, 0, str(Response[self.__JSON_ALL_DATA_KEY]["TMP_ROOM_WATER"]))
+                # TMP_PELLET_BACKW
+                UpdateDevice(self.__UNIT_TMP_PELLET_BACKW, 0, str(Response[self.__JSON_ALL_DATA_KEY]["TMP_PELLET_BACKW"]))
+                # TMP_EXHAUST
+                UpdateDevice(self.__UNIT_TMP_EXHAUST, 0, str(Response[self.__JSON_ALL_DATA_KEY]["TMP_EXHAUST"]))
+                # FAN_FAN1RPM
+                UpdateDevice(self.__UNIT_FAN_FAN1RPM, 0, str(Response[self.__JSON_ALL_DATA_KEY]["FAN_FAN1RPM"]))
+            elif isNewAPI:
+                # ROOM Temperature
+                if "T5" in Response[self.__JSON_ALL_DATA_KEY]:
+                    UpdateDevice(self.__UNIT_TMP_ROOM, 0, str(Response[self.__JSON_DATA_KEY]["T5"]))
+                # TMP_PELLET_BACKW
+                if "T2" in Response[self.__JSON_DATA_KEY]:
+                    UpdateDevice(self.__UNIT_TMP_ROOM, 0, str(Response[self.__JSON_DATA_KEY]["T2"]))
+                # TMP_EXHAUST
+                if "T3" in Response[self.__JSON_DATA_KEY]:
+                    UpdateDevice(self.__UNIT_TMP_ROOM, 0, str(Response[self.__JSON_DATA_KEY]["T3"]))
               
-              # Update status label
-              UpdateDevice(self.__UNIT_STATUSLABEL, 0, self.statusCodes.get(str(self.status)))
+            # Setpoint
+            if (isOldAPI and (isAllDataResponse or "Setpoint" in Response)) or (isNewAPI and "SETP" in Response[self.__JSON_DATA_KEY]):
+                if isAllDataResponse:
+                    UpdateDevice(self.__UNIT_SETP, 0, str(Response[self.__JSON_ALL_DATA_KEY]["SETP"]))
+                elif isOldAPI and "Setpoint" in Response:
+                    UpdateDevice(self.__UNIT_SETP, 0, str(Response["Setpoint"]["SETP"]))
+                elif isNewAPI and "SETP" in Response[self.__JSON_DATA_KEY]:
+                    UpdateDevice(self.__UNIT_SETP, 0, str(Response[self.__JSON_DATA_KEY]["SETP"]))
+
+            # Status
+            if (isOldAPI and (isAllDataResponse or "Status" in Response)) or (isNewAPI and "STATUS" in Response[self.__JSON_DATA_KEY]):
+                if isAllDataResponse:
+                    self.status = int(Response[self.__JSON_ALL_DATA_KEY]["STATUS"])
+                elif isOldAPI and "Status" in Response:
+                    self.status = int(Response["Status"]["STATUS"])
+                elif isNewAPI and "STATUS" in Response[self.__JSON_DATA_KEY]:
+                    self.status = int(Response[self.__JSON_DATA_KEY]["STATUS"])
+
+                # Update status code
+                UpdateDevice(self.__UNIT_STATUS, 3, str(self.status))
+
+                # update onStatus and On/Off Switch according to real status
+                if (self.status >= 2 and self.status <= 12):
+                    self.onStatus = 1
+                    UpdateDevice(self.__UNIT_ONOFF, 1, str("On"))
+                else:
+                    self.onStatus = 0
+                    UpdateDevice(self.__UNIT_ONOFF, 0, str("Off"))
+
+                # Update status label
+                UpdateDevice(self.__UNIT_STATUSLABEL, 0, self.statusCodes.get(str(self.status)))
           
           
-          # RoomFan    
-          if ("All Data" in Response or "RoomFan" in Response):
-              newRoomFanLevel = -1
-              if ("All Data" in Response):
-                  newRoomFanLevel = int(Response["All Data"]["FAN_FAN2LEVEL"])
-              else:
-                  newRoomFanLevel = int(Response["RoomFan"]["FAN_FAN2LEVEL"])
-          
-              # Domoticz.Debug("New Fan Speed from Palazzetti:"+str(newRoomFanLevel))
-              if ( newRoomFanLevel >= 1 ) and (newRoomFanLevel <= 5): # 1 to 5
-                  value = int(newRoomFanLevel * 10)
-                  UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, str(value))
-              elif ( newRoomFanLevel == 7 ): # OFF
-                  UpdateDevice(self.__UNIT_FAN2LEVEL, 0, 0)
-              elif ( newRoomFanLevel == 0 ): # Auto
-                  UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, 60)
-              elif ( newRoomFanLevel == 6 ): # HI
-                  UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, 70)
-          
-          # Power level
-          if ("All Data" in Response or "Power" in Response):
-              newPowerLevel = 0
-              if ("All Data" in Response):
-                  newPowerLevel = int(Response["All Data"]["POWER"])
-              else:
-                  newPowerLevel = int(Response["Power"]["POWER"])
-          
-              # Domoticz.Debug("New Power value from Palazzetti:"+str(newPowerLevel))
-              if ( newPowerLevel >= 1 ) and (newPowerLevel <= 5): # 1 to 5
-                value = int(newPowerLevel * 10)
-                UpdateDevice(self.__UNIT_POWER, self.onStatus, str(value))
-              else:
-                Domoticz.Error("Unknown power value:"+str(newPowerLevel))
-          
-          # Chrono Info
-          if ("Chrono Info" in Response):
-              newChronoInfo = int(Response["Chrono Info"]["CHRSTATUS"])
-              Domoticz.Debug("Chrono info value from Palazzetti:"+str(newChronoInfo))
-              if (newChronoInfo == 1):
-                  UpdateDevice(self.__UNIT_TIMER_ONOFF, 1, str("On"))
-              else:
-                  UpdateDevice(self.__UNIT_TIMER_ONOFF, 0, str("Off"))
-          else:
-              if ( self.status == 0):
-                  UpdateDevice(self.__UNIT_TIMER_ONOFF, 0, str("Off"))
-              elif ( self.status == 1):
-                  UpdateDevice(self.__UNIT_TIMER_ONOFF, 1, str("On"))
-                  
-        
+            # RoomFan
+            if (isOldAPI and (isAllDataResponse or "RoomFan" in Response)) or (isNewAPI and "F2L" in Response[self.__JSON_DATA_KEY]):
+                newRoomFanLevel = -1
+                if isAllDataResponse:
+                    newRoomFanLevel = int(Response[self.__JSON_ALL_DATA_KEY]["FAN_FAN2LEVEL"])
+                elif isOldAPI and "RoomFan" in Response:
+                    newRoomFanLevel = int(Response["RoomFan"]["FAN_FAN2LEVEL"])
+                elif isNewAPI and "F2L" in Response[self.__JSON_DATA_KEY]:
+                    newRoomFanLevel = int(Response[self.__JSON_DATA_KEY]["F2L"])
+
+                Domoticz.Debug("New Fan Speed from Palazzetti:"+str(newRoomFanLevel))
+                if ( newRoomFanLevel >= 1 ) and (newRoomFanLevel <= 5): # 1 to 5
+                    value = int(newRoomFanLevel * 10)
+                    UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, str(value))
+                elif ( newRoomFanLevel == 7 ): # OFF
+                    UpdateDevice(self.__UNIT_FAN2LEVEL, 0, 0)
+                elif ( newRoomFanLevel == 0 ): # Auto
+                    UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, 60)
+                elif ( newRoomFanLevel == 6 ): # HI
+                    UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, 70)
+
+            # Power level
+            if (isOldAPI and (isAllDataResponse or "Power" in Response)) or (isNewAPI and "PWR" in Response[self.__JSON_DATA_KEY]):
+                newPowerLevel = 0
+                if isAllDataResponse:
+                    newPowerLevel = int(Response[self.__JSON_ALL_DATA_KEY]["POWER"])
+                elif isOldAPI and "Power" in Response:
+                    newPowerLevel = int(Response["Power"]["POWER"])
+                elif isNewAPI and "PWR" in Response[self.__JSON_DATA_KEY]:
+                    newPowerLevel = int(Response[self.__JSON_DATA_KEY]["PWR"])
+
+                Domoticz.Debug("New Power value from Palazzetti:"+str(newPowerLevel))
+                if ( newPowerLevel >= 1 ) and (newPowerLevel <= 5): # 1 to 5
+                    value = int(newPowerLevel * 10)
+                    UpdateDevice(self.__UNIT_POWER, self.onStatus, str(value))
+                else:
+                    Domoticz.Error("Unknown power value:"+str(newPowerLevel))
+
+            # Chrono Info
+            if (isOldAPI and "Chrono Info" in Response) or (isNewAPI and "CHRSTATUS" in Response[self.__JSON_DATA_KEY]):
+                if isOldAPI and "Chrono Info" in Response:
+                    newChronoInfo = int(Response["Chrono Info"]["CHRSTATUS"])
+                elif isNewAPI and "CHRSTATUS" in Response[self.__JSON_DATA_KEY]:
+                    newChronoInfo = int(Response[self.__JSON_DATA_KEY]["CHRSTATUS"])
+
+                Domoticz.Debug("Chrono info value from Palazzetti:"+str(newChronoInfo))
+                if (newChronoInfo == 1):
+                    UpdateDevice(self.__UNIT_TIMER_ONOFF, 1, str("On"))
+                else:
+                    UpdateDevice(self.__UNIT_TIMER_ONOFF, 0, str("Off"))
+            else:
+                if ( self.status == 0):
+                    UpdateDevice(self.__UNIT_TIMER_ONOFF, 0, str("Off"))
+                elif ( self.status == 1):
+                    UpdateDevice(self.__UNIT_TIMER_ONOFF, 1, str("On"))
+
         # NO RSP: OK response          
         else:
             Domoticz.Error("Error in Connection Box response: "+str(Status))
@@ -410,10 +457,18 @@ class BasePlugin:
     
         if self.httpConn.Connected():
             self.sendConnectionBoxCommand("GET+ALLS", False)
-            self.sendConnectionBoxCommand("GET+CHRD", False)
+
+            # no need for CHRD with new API because Chrono status info is returned part of GET+ALLS cmd
+            if not self.newLUAAPI:
+                self.sendConnectionBoxCommand("GET+CHRD", False)
+
         else:
             self.nextCommands.append("GET+ALLS")
-            self.nextCommands.append("GET+CHRD")
+
+            # no need for CHRD with new API because Chrono status info is returned part of GET+ALLS cmd
+            if not self.newLUAAPI:
+                self.nextCommands.append("GET+CHRD")
+
             self.httpConn.Connect()
       
 
@@ -421,16 +476,6 @@ class BasePlugin:
         if self.httpConn.Connected():
             Domoticz.Debug("onHeartbeat called, Connection is alive.")
             
-            #data = ''
-            #headers = { 'Content-Type': 'text/xml; charset=utf-8', \
-            #            'Connection': 'keep-alive', \
-            #            'Accept': 'Content-Type: text/html; charset=UTF-8', \
-            #            'Host': Parameters["Address"]+":"+Parameters["Port"], \
-            #            'User-Agent':'Domoticz/1.0', \
-            #            'Content-Length' : "%d"%(len('')) }
-            # self.httpConn.Send(data, 'GET', '/sendmsg.php?cmd='+command, headers)
-        
-
             data = ''
             headers = { 'Content-Type': 'text/xml; charset=utf-8', \
                         'Connection': 'keep-alive', \
@@ -440,7 +485,7 @@ class BasePlugin:
                         'Content-Length' : "%d"%(len(data)) }
 
             sendData = { 'Verb' : 'GET',
-                         'URL'  : '/sendmsg.php?cmd='+command,
+                         'URL'  : self.API_URI+'?cmd='+command,
                          'Headers' : headers
                        }
             self.httpConn.Send(sendData)
