@@ -204,12 +204,24 @@ class BasePlugin:
 
     def onMessage(self, Connection, Data):
     
+        isNewAPI = self.newLUAAPI
+        isOldAPI = not self.newLUAAPI
+
         Response = json.loads( Data["Data"].decode("utf-8", "ignore") )
 
-        if (Response["Info"]["RSP"] == "OK"):
+        __JSON_KEYS = {
+            "php" : { "INFO_KEY": "Info" },
+            "lua" : { "INFO_KEY": "INFO" }
+        }
 
-            isNewAPI = self.newLUAAPI
-            isOldAPI = not self.newLUAAPI
+        keys = None
+        if isNewAPI:
+            keys = __JSON_KEYS["lua"]
+        else:
+            keys = __JSON_KEYS["php"]
+
+        if (Response[keys["INFO_KEY"]]["RSP"] == "OK"):
+
             isAllDataResponse = isOldAPI and self.__JSON_ALL_DATA_KEY in Response
 
             # old API contains more information with "GET+ALLS" command
