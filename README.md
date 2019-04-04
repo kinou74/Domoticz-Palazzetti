@@ -74,11 +74,18 @@ Both standard codes and labels can be used as key in the ```dict``` definition.
 | Version | Information|
 | ----- | ---------- |
 | 0.9.0 | Initial upload version |
+| 0.9.1 | Compatible with new LUA Connection Box APIs |
 
 
 ## TODO
 
+* Run all GET+... commands to have a complete list of json results/keys
 * Show last alarm
+* Show OnTime (time the stove is on/burning)
+* Show service Time
+* When sending command, reduce the heartbeat to gather info more frequently for 1 min or 2
+* Add an option to opdate cbox and/or stove date/time in case of improper shutdown/reboot or due to daylight saving time shifts.
+
 
 
 
