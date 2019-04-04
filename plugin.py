@@ -30,6 +30,7 @@
 import Domoticz
 import json
 import ast
+from datetime import datetime,timedelta
 
 class BasePlugin:
     httpConn = None
@@ -206,7 +207,6 @@ class BasePlugin:
         self.httpConn.Connect()
         
         Domoticz.Heartbeat(10)
-
 
     def onStop(self):
         Domoticz.Debug("onStop called")
@@ -428,6 +428,28 @@ class BasePlugin:
 
 
     def onHeartbeat(self):
+
+        # TODO test Datetime
+        # 2018-11-14 22:29:44 => YYYY-MM-DD HH:mm:SS => %Y-%m-%d %H / %Y-%m-%d %H:%M:%S
+        # d = datetime.today()
+        # # Domoticz.Debug("Datetime " + d.isoformat())
+        # dtFormat = "%Y-%m-%d %H:%M:%S"
+        # Domoticz.Debug("Local Datetime " + d.strftime( dtFormat ) )
+
+        # # stoveDateTimeStr = "2018-11-15 07:27:28"
+        # stoveDateTimeStr = "2018-11-19 18:28:00"
+        # stoveDateTime = datetime.strptime( stoveDateTimeStr, dtFormat )
+        # Domoticz.Debug("Stove Datetime " + stoveDateTime.isoformat() )
+
+        # timedelta2 = d - stoveDateTime
+        # Domoticz.Debug("Time delta " + str(timedelta2.total_seconds()) +" seconds" )
+
+        # fiveMinDelta = timedelta(minutes=1)
+
+        # if (d -  fiveMinDelta) < stoveDateTime and stoveDateTime < (d + fiveMinDelta):
+        #     Domoticz.Debug("+ ou - 1 min")
+        # else:
+        #     Domoticz.Debug("en dehors des clous")
         
         self.nextConnect = self.nextConnect - 1
         
