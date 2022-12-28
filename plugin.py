@@ -358,9 +358,9 @@ class BasePlugin:
                 if ( newRoomFanLevel >= 1 ) and (newRoomFanLevel <= 5): # 1 to 5
                     value = int(newRoomFanLevel * 10)
                     UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, str(value), False)
-                elif ( newRoomFanLevel == 7 ): # OFF
+                elif ( newRoomFanLevel == 0 ): # OFF
                     UpdateDevice(self.__UNIT_FAN2LEVEL, 0, 0)
-                elif ( newRoomFanLevel == 0 ): # Auto
+                elif ( newRoomFanLevel == 7 ): # Auto
                     UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, 60, False)
                 elif ( newRoomFanLevel == 6 ): # HI
                     UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, 70, False)
@@ -415,9 +415,9 @@ class BasePlugin:
             if (int(Level) >= 10 ) and  (int(Level) <= 50): # 1, 2, 3, 4, 5
                 fanLevel = int(int(Level) / 10)  
             elif (int(Level) == 0): # Off
-                fanLevel = 7
-            elif (int(Level) == 60): # Auto
                 fanLevel = 0
+            elif (int(Level) == 60): # Auto
+                fanLevel = 7
             elif (int(Level) == 70): # Hi
                 fanLevel = 6
                
