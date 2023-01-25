@@ -50,23 +50,60 @@ class BasePlugin:
     __UNIT_FAN_FAN1V = 12
     __UNIT_FAN_FAN1RPM = 13
     __UNIT_FAN_FAN2V = 14
+    __UNIT_DP = 15
 
     status = -1
     onStatus = 0
     
     nextCommands = []
     
-    __statusCodes = { "0": "OFF",
-                    "1": "OFF TIMER",
-                    "2": "TESTFIRE",
-                    "3": "HEATUP",
-                    "4": "FUELIGN",
-                    "5": "IGNTEST",
-                    "6": "BURNING",
-                    "9": "COOLFLUID",
-                    "10": "FIRESTOP",
-                    "11": "CLEANFIRE",
-                    "12": "COOL" }
+    __statusCodes = { "0": "Off",
+                      "1": "Timer-regulated switch off",
+                      "2": "Ignition test",
+                      "3": "Pellet feed",
+                      "4": "Ignition",
+                      "5": "Fuel check",
+                      "6": "Operating",
+                      "7": "Operating - Modulating",
+                      "8": "-",
+                      "9": "Stand-By",
+                      "10": "Switch off",
+                      "11": "Burn pot cleaning",
+                      "12": "Cooling in progress",
+                      "50": "Final cleaning",
+                      "51": "Ecomode",
+                      "241": "CHIMNEY ALARM",
+                      "243": "GRATE ERROR",
+                      "244": "NTC2 ALARM",
+                      "245": "NTC3 ALARM",
+                      "247": "DOOR ALARM",
+                      "248": "PRESS ALARM",
+                      "249": "NTC1 ALARM",
+                      "250": "TC1 ALARM",
+                      "252": "GAS ALARM",
+                      "253": "NOPELLET ALARM",
+                      "501": "Off",
+                      "502": "Ignition",
+                      "503": "Fuel check",
+                      "504": "Operating",
+                      "505": "Firewood finished",
+                      "506": "Cooling",
+                      "507": "Burn pot cleaning",
+                      "1000": "General error – See Manual",
+                      "1001": "General error – See Manual",
+                      "1239": "Door open",
+                      "1240": "Temperature too high",
+                      "1241": "Cleaning warning",
+                      "1243": "Fuel error – See Manual",
+                      "1244": "Pellet probe or return water error",
+                      "1245": "T05 error Disconnected or faulty probe",
+                      "1247": "Feed hatch or door open",
+                      "1248": "Safety pressure switch error",
+                      "1249": "Main probe failure",
+                      "1250": "Flue gas probe failure",
+                      "1252": "Too high exhaust gas temperature",
+                      "1253": "Pellets finished or Ignition failed",
+                      "1508": "General error – See Manual" }
     
     # Custom translated Status codes               
     statusCodes = {}
@@ -107,15 +144,17 @@ class BasePlugin:
             "lua" : {
                 "INFO_KEY": "INFO",
                 "DATA_KEY": "DATA",
-                "STATUS": "STATUS",
+                "STATUS": "LSTATUS",
                 "POWER": "PWR",
                 "CHRSTATUS": "CHRSTATUS",
                 "SETP": "SETP",
                 "PELLET_QTUSED": "PQT",
-                "TMP_ROOM": "T5",
+                "TMP_ROOM": "T1",
                 "TMP_PELLET_BACKW": "T2",
                 "TMP_EXHAUST": "T3",
-                "FAN_FAN2LEVEL": "F2L" }
+                "FAN_FAN2LEVEL": "F2L",
+                "FAN1RPM": "F1RPM",
+                "DP": "DP" }
         }
 
     def __init__(self):
@@ -145,7 +184,7 @@ class BasePlugin:
             Domoticz.Debug("Will use the old PHP API backend")
             self.API_URI = self.__API_URI_PHP
 
-        if (len(Devices) == 0):
+        if (len(Devices) != 15):
             # types / subtypes reference: https://github.com/domoticz/domoticz/blob/master/hardware/hardwaretypes.h
             # Image index for switches: Fireplace: 10, Fan: 7, Heating: 15, Generic: 
             
@@ -193,7 +232,10 @@ class BasePlugin:
             # __UNIT_FAN_FAN1V
             
             # __UNIT_FAN_FAN1RPM
-            Domoticz.Device(Name="FAN_FAN1RPM", Unit=self.__UNIT_FAN_FAN1RPM, Type=243, Subtype=7 , Used=0).Create()
+            Domoticz.Device(Name="FAN_FAN1RPM", Unit=self.__UNIT_FAN_FAN1RPM, Type=243, Subtype=7 , Used=1).Create()
+
+            # __UNIT_DP
+            Domoticz.Device(Name="DP", Unit=self.__UNIT_DP, Type=243, Subtype=0x1F , Used=1).Create()
 
         # prepare first commande before connecting
         self.nextCommands.append("GET+ALLS")
@@ -280,24 +322,32 @@ class BasePlugin:
             if keys["SETP"] in DataResponse:
                 UpdateDevice(self.__UNIT_SETP, 0, str( DataResponse[keys["SETP"]] ))
 
+            # FAN 1 RPM
+            if keys["FAN1RPM"] in DataResponse:
+                UpdateDevice(self.__UNIT_FAN_FAN1RPM, 0, str( DataResponse[keys["FAN1RPM"]] ))
+
+            # DP
+            if keys["DP"] in DataResponse:
+                UpdateDevice(self.__UNIT_DP, 0, str( DataResponse[keys["DP"]] ))
+                
             # Status
             if keys["STATUS"] in DataResponse:
                 self.status = int( DataResponse[keys["STATUS"]] )
 
                 # Update status code
                 Domoticz.Debug("Status code retrieved from cbox:"+str(self.status))
-                UpdateDevice(self.__UNIT_STATUS, 3, str(self.status))
+                UpdateDevice(self.__UNIT_STATUS, 3, str(self.status), False)
 
                 # update onStatus and On/Off Switch according to status code
                 if (self.status >= 2 and self.status <= 12):
                     self.onStatus = 1
-                    UpdateDevice(self.__UNIT_ONOFF, 1, str("On"))
+                    UpdateDevice(self.__UNIT_ONOFF, 1, str("On"), False)
                 else:
                     self.onStatus = 0
-                    UpdateDevice(self.__UNIT_ONOFF, 0, str("Off"))
+                    UpdateDevice(self.__UNIT_ONOFF, 0, str("Off"), False)
 
                 # Update status label
-                UpdateDevice(self.__UNIT_STATUSLABEL, 0, self.statusCodes.get(str(self.status)))
+                UpdateDevice(self.__UNIT_STATUSLABEL, 0, self.statusCodes.get(str(self.status)), False)
           
           
             # RoomFan
@@ -307,13 +357,13 @@ class BasePlugin:
                 Domoticz.Debug("Fan Speed retrieved from cbox:"+str(newRoomFanLevel))
                 if ( newRoomFanLevel >= 1 ) and (newRoomFanLevel <= 5): # 1 to 5
                     value = int(newRoomFanLevel * 10)
-                    UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, str(value))
-                elif ( newRoomFanLevel == 7 ): # OFF
+                    UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, str(value), False)
+                elif ( newRoomFanLevel == 0 ): # OFF
                     UpdateDevice(self.__UNIT_FAN2LEVEL, 0, 0)
-                elif ( newRoomFanLevel == 0 ): # Auto
-                    UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, 60)
+                elif ( newRoomFanLevel == 7 ): # Auto
+                    UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, 60, False)
                 elif ( newRoomFanLevel == 6 ): # HI
-                    UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, 70)
+                    UpdateDevice(self.__UNIT_FAN2LEVEL, self.onStatus, 70, False)
 
             # Power level
             if keys["POWER"] in DataResponse:
@@ -322,7 +372,7 @@ class BasePlugin:
                 Domoticz.Debug("Power level retrieved from cbox:"+str(newPowerLevel))
                 if ( newPowerLevel >= 1 ) and (newPowerLevel <= 5): # 1 to 5
                     value = int(newPowerLevel * 10)
-                    UpdateDevice(self.__UNIT_POWER, self.onStatus, str(value))
+                    UpdateDevice(self.__UNIT_POWER, self.onStatus, str(value), False)
                 else:
                     Domoticz.Error("Unknown power value:"+str(newPowerLevel))
 
@@ -332,19 +382,19 @@ class BasePlugin:
 
                 Domoticz.Debug("Chrono info retrieved from cbox:"+str(newChronoInfo))
                 if (newChronoInfo == 1):
-                    UpdateDevice(self.__UNIT_TIMER_ONOFF, 1, str("On"))
+                    UpdateDevice(self.__UNIT_TIMER_ONOFF, 1, str("On"), False)
                 else:
-                    UpdateDevice(self.__UNIT_TIMER_ONOFF, 0, str("Off"))
+                    UpdateDevice(self.__UNIT_TIMER_ONOFF, 0, str("Off"), False)
             # else:
             # TODO what was the reason for Updating TIMER_ONOFF based on status ?!?
             #     if ( self.status == 0):
-            #         UpdateDevice(self.__UNIT_TIMER_ONOFF, 0, str("Off"))
+            #         UpdateDevice(self.__UNIT_TIMER_ONOFF, 0, str("Off"), False)
             #     elif ( self.status == 1):
-            #         UpdateDevice(self.__UNIT_TIMER_ONOFF, 1, str("On"))
+            #         UpdateDevice(self.__UNIT_TIMER_ONOFF, 1, str("On"), False)
 
         # NO RSP: OK response          
         else:
-            Domoticz.Error("Error in Connection Box response: "+str(Status))
+            Domoticz.Error("Error in Connection Box response: "+str(Response))
 
         return True 
     
@@ -365,9 +415,9 @@ class BasePlugin:
             if (int(Level) >= 10 ) and  (int(Level) <= 50): # 1, 2, 3, 4, 5
                 fanLevel = int(int(Level) / 10)  
             elif (int(Level) == 0): # Off
-                fanLevel = 7
-            elif (int(Level) == 60): # Auto
                 fanLevel = 0
+            elif (int(Level) == 60): # Auto
+                fanLevel = 7
             elif (int(Level) == 70): # Hi
                 fanLevel = 6
                
@@ -385,13 +435,13 @@ class BasePlugin:
             if (action == 'Off'):
               Domoticz.Debug("Switching Off")
               self.onStatus = 0
-              # UpdateDevice(self.__UNIT_ONOFF, 0, str("Off"))
+              # UpdateDevice(self.__UNIT_ONOFF, 0, str("Off"), False)
               cmd = "CMD+OFF"
               self.sendConnectionBoxCommand(cmd)
             elif (action == 'On'):
               Domoticz.Debug("Switching On")
               self.onStatus = 1
-              # UpdateDevice(self.__UNIT_ONOFF, 1, str("On"))
+              # UpdateDevice(self.__UNIT_ONOFF, 1, str("On"), False)
               cmd = "CMD+ON"
               self.sendConnectionBoxCommand(cmd)
             return True
@@ -406,12 +456,12 @@ class BasePlugin:
         elif (Unit == self.__UNIT_TIMER_ONOFF): # Timer On/Off Switch
             if (action == 'Off'):
               Domoticz.Debug("Switching Timer Off")
-              UpdateDevice(self.__UNIT_TIMER_ONOFF, 0, str("Off"))
+              UpdateDevice(self.__UNIT_TIMER_ONOFF, 0, str("Off"), False)
               cmd = "SET+CSST+0"
               self.sendConnectionBoxCommand(cmd)
             elif (action == 'On'):
               Domoticz.Debug("Switching Timer On")
-              UpdateDevice(self.__UNIT_TIMER_ONOFF, 1, str("On"))
+              UpdateDevice(self.__UNIT_TIMER_ONOFF, 1, str("On"), False)
               cmd = "SET+CSST+1"
               self.sendConnectionBoxCommand(cmd)
               
@@ -639,15 +689,15 @@ def DumpConfigToLog2():
         Domoticz.Debug("Device Image.........: " + str(Devices[x].Image))
     return
 
-def UpdateDevice(Unit, nValue, sValue):
+def UpdateDevice(Unit, nValue, sValue, always = True):
     # Make sure that the Domoticz device still exists (they can be deleted) before updating it 
     if (Unit in Devices):
-        if (Devices[Unit].nValue != nValue):
+        if (Devices[Unit].nValue != nValue or always == True):
             Devices[Unit].Update(nValue=nValue, sValue=str(sValue))
-            Domoticz.Debug("Update "+str(nValue)+":'"+str(sValue)+"' ("+Devices[Unit].Name+") due to different in nValue")
-        elif ( str(Devices[Unit].sValue) != str(sValue) ):
+            #Domoticz.Debug("Update "+str(nValue)+":'"+str(sValue)+"' ("+Devices[Unit].Name+") due to different in nValue")
+        if ( str(Devices[Unit].sValue) != str(sValue) or always == True):
             Devices[Unit].Update(nValue=nValue, sValue=str(sValue))
-            Domoticz.Debug("Update "+str(nValue)+":'"+str(sValue)+"' ("+Devices[Unit].Name+") due to different in sValue")
+            #Domoticz.Debug("Update "+str(nValue)+":'"+str(sValue)+"' ("+Devices[Unit].Name+") due to different in sValue")
     return
     
 def DumpHTTPResponseToLog(httpDict):
